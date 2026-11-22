@@ -10,13 +10,32 @@ const PrutasanSales = () => {
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [isReviewing, setIsReviewing] = useState(false);
 
+  // 2.2 Records & Filter state
+  const [records, setRecords] = useState([]);
+  const [filterDate, setFilterDate] = useState('');
+  const [searchProduct, setSearchProduct] = useState('');
+
+  const loadPrutasanItems = async () => {
+    const res = await api.get('/inventory/Prutasan');
+    setFruits(res.data);
+  };
+
+  const loadSalesRecords = async () => {
+    const params = {};
+    if (filterDate) params.date = filterDate;
+    if (searchProduct) params.product = searchProduct;
+
+    const res = await api.get('/prutasan/sales', { params });
+    setRecords(res.data);
+  };
+
   useEffect(() => {
-    const loadPrutasanItems = async () => {
-      const res = await api.get('/inventory/Prutasan');
-      setFruits(res.data);
-    };
     loadPrutasanItems();
   }, []);
+
+  useEffect(() => {
+    loadSalesRecords();
+  }, [filterDate, searchProduct]);
 
   const totalAmount = Number(kilos || 0) * Number(pricePerKilo || 0);
 
@@ -32,7 +51,6 @@ const PrutasanSales = () => {
       price_per_kilo: pricePerKilo,
       payment_method: paymentMethod,
       sale_date: saleDate,
-      total_amount: totalAmount,
     });
 
     setFruit('');
@@ -40,6 +58,7 @@ const PrutasanSales = () => {
     setPricePerKilo('');
     setPaymentMethod('Cash');
     setIsReviewing(false);
+    loadSalesRecords();
   };
 
   return (
@@ -120,6 +139,49 @@ const PrutasanSales = () => {
           <button type="button" onClick={handleSubmit}>Submit Sale</button>
         </div>
       )}
+
+      {/* 2.2 Prutasan Sales Records View */}
+      <h3>Prutasan Sales Records</h3>
+      <div>
+        <label>Filter by Date: </label>
+        <input
+          type="date"
+          value={filterDate}
+          onChange={(e) => setFilterDate(e.target.value)}
+        />
+        <label> Search Product: </label>
+        <input
+          type="text"
+          placeholder="Search fruit..."
+          value={searchProduct}
+          onChange={(e) => setSearchProduct(e.target.value)}
+        />
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Kilos</th>
+            <th>Price per Kilo</th>
+            <th>Payment Method</th>
+            <th>Total Amount</th>
+            <th>Transaction Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((rec) => (
+            <tr key={rec.id}>
+              <td>{rec.product}</td>
+              <td>{rec.kilos} kg</td>
+              <td>{rec.price_per_kilo}</td>
+              <td>{rec.payment_method}</td>
+              <td>{rec.total_amount}</td>
+              <td>{rec.sale_date}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
