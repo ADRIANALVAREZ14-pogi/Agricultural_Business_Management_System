@@ -4,16 +4,21 @@ import api from '../services/api';
 const Reports = () => {
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [summary, setSummary] = useState(null);
+  const [monthlyReport, setMonthlyReport] = useState(null);
 
   useEffect(() => {
-    const loadGulayanSummary = async () => {
-      const res = await api.get(/reports/gulayan-summary?month=${month});
-      setSummary(res.data);
+    const loadGulayanReports = async () => {
+      const [summaryRes, monthlyRes] = await Promise.all([
+        api.get(/reports/gulayan-summary?month=${month}),
+        api.get(/reports/gulayan-monthly?month=${month}),
+      ]);
+      setSummary(summaryRes.data);
+      setMonthlyReport(monthlyRes.data);
     };
-    loadGulayanSummary();
+    loadGulayanReports();
   }, [month]);
 
-  // Using shared print and export (PDF & Excel) engine (4.5)
+  // Shared print and export (PDF & Excel) engine (4.5)
   const handlePrint = () => {
     window.print();
   };
@@ -21,13 +26,13 @@ const Reports = () => {
   const handleExportPDF = async () => {
     const res = await api.post(
       '/reports/export/pdf',
-      { reportType: 'gulayan-summary', month, data: summary },
+      { reportType: 'gulayan', month, summary, monthlyReport },
       { responseType: 'blob' }
     );
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', Gulayan_Summary_${month}.pdf);
+    link.setAttribute('download', Gulayan_Report_${month}.pdf);
     document.body.appendChild(link);
     link.click();
   };
@@ -35,20 +40,20 @@ const Reports = () => {
   const handleExportExcel = async () => {
     const res = await api.post(
       '/reports/export/excel',
-      { reportType: 'gulayan-summary', month, data: summary },
+      { reportType: 'gulayan', month, summary, monthlyReport },
       { responseType: 'blob' }
     );
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', Gulayan_Summary_${month}.xlsx);
+    link.setAttribute('download', Gulayan_Report_${month}.xlsx);
     document.body.appendChild(link);
     link.click();
   };
 
   return (
     <div>
-      <h2>Gulayan Sales and Expense Summary</h2>
+      <h2>Gulayan Reports</h2>
 
       <div>
         <label>Select Month: </label>
@@ -65,9 +70,10 @@ const Reports = () => {
         <button type="button" onClick={handleExportExcel}>Export Excel</button>
       </div>
 
+      {/* 1.8 Sales and Expense Summaries */}
       {summary && (
         <div>
-          <h3>Gulayan Monthly Sales Summary ({summary.month})</h3>
+          <h3>Gulayan Sales and Expense Summary ({summary.month})</h3>
           <table>
             <thead>
               <tr>
@@ -83,11 +89,10 @@ const Reports = () => {
             </tbody>
           </table>
 
-          <h3>Gulayan Expenses by Category ({summary.month})</h3>
           <table>
             <thead>
               <tr>
-                <th>Category</th>
+                <th>Expense Category</th>
                 <th>Total Amount</th>
               </tr>
             </thead>
@@ -102,6 +107,61 @@ const Reports = () => {
                 <td><strong>Total Expenses</strong></td>
                 <td><strong>{summary.totalExpenses}</strong></td>
               </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* 1.9 Gulayan Monthly Report */}
+      {monthlyReport && (
+        <div>
+          <h3>Gulayan Monthly Report ({monthlyReport.month})</h3>
+          <table>
+            <tbody>
+              <tr>
+                <td>Sales</td>
+                <td>{monthlyReport.sales}</td>
+              </tr>
+              <tr>
+                <td>Cost of Goods Sold</td>
+                <td>{monthlyReport.costOfGoodsSold}</td>
+              </tr>
+              <tr>
+                <td>Expenses</td>
+                <td>{monthlyReport.expenses}</td>
+              </tr>
+              <tr>
+                <td>Spoilage Loss ({monthlyReport.spoilage.total_kilos} kg)</td>
+                <td>{monthlyReport.spoilage.total_loss}</td>
+              </tr>
+              <tr>
+                <td><strong>Net Profit</strong></td>
+                <td><strong>{monthlyReport.netProfit}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4>Stock Movement ({monthlyReport.month})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Item</th>
+                <th>Movement Type</th>
+                <th>Kilos</th>
+                <th>Spoilage Loss</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyReport.stockMovements.map((m, idx) => (
+                <tr key={idx}>
+                  <td>{m.movement_date}</td>
+                  <td>{m.item_name}</td>
+                  <td>{m.movement_type}</td>
+                  <td>{m.kilos} kg</td>
+                  <td>{m.spoilage_loss}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

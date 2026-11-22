@@ -1,5 +1,6 @@
 const reportService = require('../services/reportService');
 
+// 1.8 Sales and Expense Summaries
 exports.getGulayanSummaryReport = async (req, res) => {
   const { month } = req.query;
 
@@ -8,5 +9,17 @@ exports.getGulayanSummaryReport = async (req, res) => {
     res.status(200).json(summary);
   } catch (error) {
     res.status(500).json({ message: 'Failed to retrieve Gulayan summary.', error: error.message });
+  }
+};
+
+// 1.9 Gulayan Monthly Report
+exports.getGulayanMonthlyReport = async (req, res) => {
+  const { month } = req.query;
+
+  try {
+    const report = await reportService.getGulayanMonthlyReport(month);
+    res.status(200).json(report);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to prepare Gulayan monthly report.', error: error.message });
   }
 };
