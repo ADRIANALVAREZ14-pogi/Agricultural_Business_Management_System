@@ -1,14 +1,18 @@
 const db = require('../config/db');
 
 // ==========================================
-// 1.3 GULAYAN INVENTORY MANAGEMENT
+// 1.3 & 2.3 INVENTORY MANAGEMENT (GULAYAN & PRUTASAN)
 // ==========================================
 exports.addStock = async (req, res) => {
-  if (req.user.role !== 'Admin') {
+  if (req.user?.role !== 'Admin') {
     return res.status(403).json({ message: 'Admin only.' });
   }
 
   const { department, item_name, kilos, purchase_cost_per_kilo } = req.body;
+
+  if (department !== 'Gulayan' && department !== 'Prutasan') {
+    return res.status(400).json({ message: 'Invalid department.' });
+  }
 
   const [result] = await db.query(
     `INSERT INTO inventory (department, item_name, kilos, purchase_cost_per_kilo)
@@ -16,7 +20,13 @@ exports.addStock = async (req, res) => {
     [department, item_name, kilos, purchase_cost_per_kilo]
   );
 
-  res.status(201).json({ id: result.insertId, department, item_name, kilos, purchase_cost_per_kilo });
+  res.status(201).json({
+    id: result.insertId,
+    department,
+    item_name,
+    kilos,
+    purchase_cost_per_kilo,
+  });
 };
 
 exports.getStock = async (req, res) => {
@@ -33,7 +43,7 @@ exports.getStock = async (req, res) => {
 };
 
 exports.updateStock = async (req, res) => {
-  if (req.user.role !== 'Admin') {
+  if (req.user?.role !== 'Admin') {
     return res.status(403).json({ message: 'Admin only.' });
   }
 
@@ -51,19 +61,19 @@ exports.updateStock = async (req, res) => {
 };
 
 exports.deleteStock = async (req, res) => {
-  if (req.user.role !== 'Admin') {
+  if (req.user?.role !== 'Admin') {
     return res.status(403).json({ message: 'Admin only.' });
   }
 
   const { id } = req.params;
 
-  await db.query(DELETE FROM inventory WHERE id = ?, [id]);
+  await db.query(`DELETE FROM inventory WHERE id = ?`, [id]);
 
   res.status(200).json({ message: 'Deleted.' });
 };
 
 // ==========================================
-// 1.4 STOCK MOVEMENT AND END-OF-DAY CLOSING
+// 1.4 GULAYAN STOCK MOVEMENT AND END-OF-DAY CLOSING
 // ==========================================
 exports.recordStockMovement = async (req, res) => {
   const { item_name, movement_type, kilos, movement_date, cost_per_kilo } = req.body;
@@ -82,12 +92,12 @@ exports.recordStockMovement = async (req, res) => {
 
     if (movement_type === 'IN') {
       await connection.query(
-        UPDATE inventory SET kilos = kilos + ? WHERE department = 'Gulayan' AND item_name = ?,
+        `UPDATE inventory SET kilos = kilos + ? WHERE department = 'Gulayan' AND item_name = ?`,
         [kilos, item_name]
       );
     } else if (movement_type === 'OUT_SALE' || movement_type === 'OUT_SPOILAGE') {
       await connection.query(
-        UPDATE inventory SET kilos = kilos - ? WHERE department = 'Gulayan' AND item_name = ?,
+        `UPDATE inventory SET kilos = kilos - ? WHERE department = 'Gulayan' AND item_name = ?`,
         [kilos, item_name]
       );
     }
@@ -107,7 +117,7 @@ exports.computeDailyClosing = async (req, res) => {
 
   try {
     const [items] = await db.query(
-      SELECT item_name, kilos AS closing_kilos FROM inventory WHERE department = 'Gulayan'
+      `SELECT item_name, kilos AS closing_kilos FROM inventory WHERE department = 'Gulayan'`
     );
 
     for (const item of items) {
@@ -145,7 +155,7 @@ exports.getDailyMovementsAndClosing = async (req, res) => {
 };
 
 // ==========================================
-// 1.5 LOW-STOCK AND SPOILAGE INDICATORS
+// 1.5 GULAYAN LOW-STOCK AND SPOILAGE INDICATORS
 // ==========================================
 exports.getGulayanIndicators = async (req, res) => {
   try {
