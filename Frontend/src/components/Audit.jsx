@@ -2,44 +2,65 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
 const Audit = () => {
+  const [department, setDepartment] = useState('Gulayan');
+  const [items, setItems] = useState([]);
+  const [logs, setLogs] = useState([]);
+
   const [auditDate, setAuditDate] = useState(new Date().toISOString().split('T')[0]);
   const [itemName, setItemName] = useState('');
-  const [systemQuantity, setSystemQuantity] = useState('');
   const [countedQuantity, setCountedQuantity] = useState('');
   const [reason, setReason] = useState('');
-  const [approved, setApproved] = useState(true);
-  const [adjustmentLogs, setAdjustmentLogs] = useState([]);
 
-  const loadAdjustmentLogs = async () => {
-    const res = await api.get('/gulayan/audit-log');
-    setAdjustmentLogs(res.data);
+  const selectedItem = items.find((i) => i.item_name === itemName);
+  const systemQuantity = selectedItem ? Number(selectedItem.kilos) : 0;
+
+  const loadAuditData = async () => {
+    const invRes = await api.get(`/inventory/${department}`);
+    setItems(invRes.data);
+
+    const logEndpoint = department === 'Gulayan' ? '/gulayan/audit' : '/prutasan/audit';
+    const logRes = await api.get(logEndpoint);
+    setLogs(logRes.data);
   };
 
   useEffect(() => {
-    loadAdjustmentLogs();
-  }, []);
+    setItemName('');
+    setCountedQuantity('');
+    setReason('');
+    loadAuditData();
+  }, [department]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await api.post('/gulayan/audit', {
+    const postEndpoint = department === 'Gulayan' ? '/gulayan/audit' : '/prutasan/audit';
+
+    await api.post(postEndpoint, {
       audit_date: auditDate,
       item_name: itemName,
-      system_quantity: systemQuantity,
       counted_quantity: countedQuantity,
       reason,
-      approved,
     });
 
     setItemName('');
-    setSystemQuantity('');
     setCountedQuantity('');
     setReason('');
-    loadAdjustmentLogs();
+    loadAuditData();
   };
 
   return (
     <div>
-      <h2>Admin - Gulayan Monthly Physical Audit</h2>
+      <h2>Monthly Physical Audit and Stock Adjustment Log</h2>
+
+      {/* Department Selector (1.6 Gulayan & 2.6 Prutasan) */}
+      <div>
+        <label>Department: </label>
+        <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+          <option value="Gulayan">Gulayan</option>
+          <option value="Prutasan">Prutasan</option>
+        </select>
+      </div>
+
+      {/* Admin Audit Form for Entering Physical Counts */}
       <form onSubmit={handleSubmit}>
         <div>
           <label>Audit Date:</label>
@@ -52,25 +73,20 @@ const Audit = () => {
         </div>
 
         <div>
-          <label>Item:</label>
-          <input
-            type="text"
-            placeholder="Vegetable"
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            required
-          />
+          <label>Item ({department}):</label>
+          <select value={itemName} onChange={(e) => setItemName(e.target.value)} required>
+            <option value="">-- Select Item --</option>
+            {items.map((item) => (
+              <option key={item.id} value={item.item_name}>
+                {item.item_name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
           <label>System Quantity (kg):</label>
-          <input
-            type="number"
-            step="0.01"
-            value={systemQuantity}
-            onChange={(e) => setSystemQuantity(e.target.value)}
-            required
-          />
+          <input type="number" value={systemQuantity} readOnly />
         </div>
 
         <div>
@@ -94,21 +110,11 @@ const Audit = () => {
           />
         </div>
 
-        <div>
-          <label>
-            <input
-              type="checkbox"
-              checked={approved}
-              onChange={(e) => setApproved(e.target.checked)}
-            />
-            Approve Correction
-          </label>
-        </div>
-
-        <button type="submit">Submit Audit</button>
+        <button type="submit">Approve Correction</button>
       </form>
 
-      <h3>Stock-Adjustment Log</h3>
+      {/* Stock-Adjustment Log View (Date, Item, Difference, Reason) */}
+      <h3>{department} Stock-Adjustment Log</h3>
       <table>
         <thead>
           <tr>
@@ -119,7 +125,7 @@ const Audit = () => {
           </tr>
         </thead>
         <tbody>
-          {adjustmentLogs.map((log) => (
+          {logs.map((log) => (
             <tr key={log.id}>
               <td>{log.audit_date}</td>
               <td>{log.item_name}</td>
