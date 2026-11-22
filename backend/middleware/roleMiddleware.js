@@ -1,4 +1,6 @@
-// Role-based access check for Gulayan Staff (referencing 4.1 & 4.2)
+// ==========================================
+// 1.11 GULAYAN STAFF ROLE MIDDLEWARE
+// ==========================================
 const authorizeGulayanStaff = (req, res, next) => {
   if (req.user?.role !== 'Gulayan Staff') {
     return res.status(403).json({ message: 'Access restricted to Gulayan Staff interface only.' });
@@ -6,4 +8,14 @@ const authorizeGulayanStaff = (req, res, next) => {
   next();
 };
 
-module.exports = { authorizeGulayanStaff };
+// ==========================================
+// 2.11 PRUTASAN STAFF ROLE MIDDLEWARE
+// ==========================================
+const authorizePrutasanStaff = (req, res, next) => {
+  if (req.user?.role !== 'Prutasan Staff') {
+    return res.status(403).json({ message: 'Access restricted to Prutasan Staff interface only.' });
+  }
+  next();
+};
+
+module.exports = { authorizeGulayanStaff, authorizePrutasanStaff };
