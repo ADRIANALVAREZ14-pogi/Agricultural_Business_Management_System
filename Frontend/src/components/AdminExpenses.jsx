@@ -4,26 +4,38 @@ import api from '../services/api';
 const AdminExpenses = () => {
   const [department, setDepartment] = useState('Gulayan');
   const [category, setCategory] = useState('sourcing');
+  const [batchId, setBatchId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
 
   const [filterDate, setFilterDate] = useState('');
   const [expenses, setExpenses] = useState([]);
-  const [categoryTotals, setCategoryTotals] = useState({
-    sourcing: 0,
-    storage: 0,
-    logistics: 0,
-    labor: 0,
-  });
+  const [categoryTotals, setCategoryTotals] = useState({});
   const [grandTotal, setGrandTotal] = useState(0);
 
+  const categories =
+    department === 'Babuyan'
+      ? ['feed', 'veterinary care', 'labor', 'utilities']
+      : ['sourcing', 'storage', 'logistics', 'labor'];
+
+  const handleDepartmentChange = (newDept) => {
+    setDepartment(newDept);
+    setCategory(newDept === 'Babuyan' ? 'feed' : 'sourcing');
+    setBatchId('');
+  };
+
   const loadExpenses = async () => {
-    const endpoint = department === 'Gulayan' ? '/gulayan/expenses' : '/prutasan/expenses';
+    const endpointMap = {
+      Gulayan: '/gulayan/expenses',
+      Prutasan: '/prutasan/expenses',
+      Babuyan: '/babuyan/expenses',
+    };
+
     const params = {};
     if (filterDate) params.date = filterDate;
 
-    const res = await api.get(endpoint, { params });
+    const res = await api.get(endpointMap[department], { params });
     setExpenses(res.data.expenses);
     setCategoryTotals(res.data.categoryTotals);
     setGrandTotal(res.data.grandTotal);
@@ -35,17 +47,28 @@ const AdminExpenses = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const endpoint = department === 'Gulayan' ? '/gulayan/expenses' : '/prutasan/expenses';
+    const endpointMap = {
+      Gulayan: '/gulayan/expenses',
+      Prutasan: '/prutasan/expenses',
+      Babuyan: '/babuyan/expenses',
+    };
 
-    await api.post(endpoint, {
+    const payload = {
       category,
       amount,
       description,
       expense_date: expenseDate,
-    });
+    };
+
+    if (department === 'Babuyan' && batchId) {
+      payload.batch_id = batchId;
+    }
+
+    await api.post(endpointMap[department], payload);
 
     setAmount('');
     setDescription('');
+    setBatchId('');
     loadExpenses();
   };
 
@@ -53,25 +76,39 @@ const AdminExpenses = () => {
     <div>
       <h2>Admin - Department Expenses</h2>
 
-      {/* Department Selector (1.7 Gulayan & 2.7 Prutasan) */}
+      {/* Department Selector (1.7 Gulayan, 2.7 Prutasan, 3.2 Babuyan) */}
       <div>
         <label>Department: </label>
-        <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+        <select value={department} onChange={(e) => handleDepartmentChange(e.target.value)}>
           <option value="Gulayan">Gulayan</option>
           <option value="Prutasan">Prutasan</option>
+          <option value="Babuyan">Babuyan</option>
         </select>
       </div>
 
       {/* Admin Expense Form */}
       <h3>Add {department} Expense</h3>
       <form onSubmit={handleSubmit}>
+        {department === 'Babuyan' && (
+          <div>
+            <label>Batch ID (Optional / For Batch Cost):</label>
+            <input
+              type="text"
+              placeholder="e.g., BATCH-01"
+              value={batchId}
+              onChange={(e) => setBatchId(e.target.value)}
+            />
+          </div>
+        )}
+
         <div>
           <label>Category:</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)} required>
-            <option value="sourcing">Sourcing</option>
-            <option value="storage">Storage</option>
-            <option value="logistics">Logistics</option>
-            <option value="labor">Labor</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat.charAt(0).toUpperCase() + cat.slice(1)}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -108,7 +145,7 @@ const AdminExpenses = () => {
         <button type="submit">Save Expense</button>
       </form>
 
-      {/* Date Filtering & Categorized Totals */}
+      {/* Date Filtering & Categorized View */}
       <h3>{department} Categorized Expense Summary</h3>
       <div>
         <label>Filter by Date: </label>
@@ -127,19 +164,17 @@ const AdminExpenses = () => {
       <table>
         <thead>
           <tr>
-            <th>Sourcing</th>
-            <th>Storage</th>
-            <th>Logistics</th>
-            <th>Labor</th>
+            {categories.map((cat) => (
+              <th key={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</th>
+            ))}
             <th>Total Expenses</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>{categoryTotals.sourcing}</td>
-            <td>{categoryTotals.storage}</td>
-            <td>{categoryTotals.logistics}</td>
-            <td>{categoryTotals.labor}</td>
+            {categories.map((cat) => (
+              <td key={cat}>{categoryTotals[cat] || 0}</td>
+            ))}
             <td><strong>{grandTotal}</strong></td>
           </tr>
         </tbody>
@@ -151,6 +186,7 @@ const AdminExpenses = () => {
         <thead>
           <tr>
             <th>Date</th>
+            {department === 'Babuyan' && <th>Batch ID</th>}
             <th>Category</th>
             <th>Description</th>
             <th>Amount</th>
@@ -160,6 +196,7 @@ const AdminExpenses = () => {
           {expenses.map((exp) => (
             <tr key={exp.id}>
               <td>{exp.expense_date}</td>
+              {department === 'Babuyan' && <td>{exp.batch_id || '-'}</td>}
               <td>{exp.category}</td>
               <td>{exp.description || '-'}</td>
               <td>{exp.amount}</td>
