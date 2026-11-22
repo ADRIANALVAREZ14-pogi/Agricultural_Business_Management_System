@@ -9,8 +9,9 @@ const Reports = () => {
   const [gulayanSummary, setGulayanSummary] = useState(null);
   const [gulayanMonthlyReport, setGulayanMonthlyReport] = useState(null);
 
-  // Prutasan state (2.8)
+  // Prutasan state (2.8 & 2.9)
   const [prutasanSummary, setPrutasanSummary] = useState(null);
+  const [prutasanMonthlyReport, setPrutasanMonthlyReport] = useState(null);
 
   useEffect(() => {
     const loadReports = async () => {
@@ -22,8 +23,12 @@ const Reports = () => {
         setGulayanSummary(summaryRes.data);
         setGulayanMonthlyReport(monthlyRes.data);
       } else if (department === 'Prutasan') {
-        const summaryRes = await api.get(`/reports/prutasan-summary?month=${month}`);
+        const [summaryRes, monthlyRes] = await Promise.all([
+          api.get(`/reports/prutasan-summary?month=${month}`),
+          api.get(`/reports/prutasan-monthly?month=${month}`),
+        ]);
         setPrutasanSummary(summaryRes.data);
+        setPrutasanMonthlyReport(monthlyRes.data);
       }
     };
     loadReports();
@@ -38,7 +43,7 @@ const Reports = () => {
     const payload =
       department === 'Gulayan'
         ? { reportType: 'gulayan', month, summary: gulayanSummary, monthlyReport: gulayanMonthlyReport }
-        : { reportType: 'prutasan', month, summary: prutasanSummary };
+        : { reportType: 'prutasan', month, summary: prutasanSummary, monthlyReport: prutasanMonthlyReport };
 
     const res = await api.post('/reports/export/pdf', payload, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -53,7 +58,7 @@ const Reports = () => {
     const payload =
       department === 'Gulayan'
         ? { reportType: 'gulayan', month, summary: gulayanSummary, monthlyReport: gulayanMonthlyReport }
-        : { reportType: 'prutasan', month, summary: prutasanSummary };
+        : { reportType: 'prutasan', month, summary: prutasanSummary, monthlyReport: prutasanMonthlyReport };
 
     const res = await api.post('/reports/export/excel', payload, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -188,7 +193,7 @@ const Reports = () => {
       )}
 
       {/* ========================================== */}
-      {/* PRUTASAN REPORTS (2.8)                     */}
+      {/* PRUTASAN REPORTS (2.8 & 2.9)               */}
       {/* ========================================== */}
       {department === 'Prutasan' && prutasanSummary && (
         <div>
@@ -226,6 +231,60 @@ const Reports = () => {
                 <td><strong>Total Expenses</strong></td>
                 <td><strong>{prutasanSummary.totalExpenses}</strong></td>
               </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {department === 'Prutasan' && prutasanMonthlyReport && (
+        <div>
+          <h3>Prutasan Monthly Report ({prutasanMonthlyReport.month})</h3>
+          <table>
+            <tbody>
+              <tr>
+                <td>Sales</td>
+                <td>{prutasanMonthlyReport.sales}</td>
+              </tr>
+              <tr>
+                <td>Cost of Goods Sold</td>
+                <td>{prutasanMonthlyReport.costOfGoodsSold}</td>
+              </tr>
+              <tr>
+                <td>Expenses</td>
+                <td>{prutasanMonthlyReport.expenses}</td>
+              </tr>
+              <tr>
+                <td>Spoilage Loss ({prutasanMonthlyReport.spoilage.total_kilos} kg)</td>
+                <td>{prutasanMonthlyReport.spoilage.total_loss}</td>
+              </tr>
+              <tr>
+                <td><strong>Net Profit</strong></td>
+                <td><strong>{prutasanMonthlyReport.netProfit}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4>Stock Movement ({prutasanMonthlyReport.month})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Item</th>
+                <th>Movement Type</th>
+                <th>Kilos</th>
+                <th>Spoilage Loss</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prutasanMonthlyReport.stockMovements.map((m, idx) => (
+                <tr key={idx}>
+                  <td>{m.movement_date}</td>
+                  <td>{m.item_name}</td>
+                  <td>{m.movement_type}</td>
+                  <td>{m.kilos} kg</td>
+                  <td>{m.spoilage_loss}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
