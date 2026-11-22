@@ -140,3 +140,69 @@ exports.getPrutasanSalesAndExpenseSummary = async (month) => {
     totalExpenses,
   };
 };
+
+// ==========================================
+// 2.9 PRUTASAN MONTHLY REPORT
+// ==========================================
+exports.getPrutasanMonthlyReport = async (month) => {
+  const [salesRows] = await db.query(
+    `SELECT 
+       COALESCE(SUM(total_amount), 0) AS total_sales,
+       COALESCE(SUM(kilos * purchase_cost_per_kilo), 0) AS total_cogs
+     FROM prutasan_sales
+     WHERE department = 'Prutasan' AND DATE_FORMAT(sale_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  const [expenseRows] = await db.query(
+    `SELECT COALESCE(SUM(amount), 0) AS total_expenses
+     FROM expenses
+     WHERE department = 'Prutasan' AND DATE_FORMAT(expense_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  const [stockMovements] = await db.query(
+    `SELECT item_name, movement_type, kilos, spoilage_loss, movement_date
+     FROM prutasan_stock_movements
+     WHERE department = 'Prutasan' AND DATE_FORMAT(movement_date, '%Y-%m') = ?
+     ORDER BY movement_date ASC`,
+    [month]
+  );
+
+  const [spoilageRows] = await db.query(
+    `SELECT 
+       COALESCE(SUM(kilos), 0) AS total_spoilage_kilos,
+       COALESCE(SUM(spoilage_loss), 0) AS total_spoilage_loss
+     FROM prutasan_stock_movements
+     WHERE department = 'Prutasan' 
+       AND movement_type = 'OUT_SPOILAGE'
+       AND DATE_FORMAT(movement_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  const sales = Number(salesRows[0].total_sales);
+  const costOfGoodsSold = Number(salesRows[0].total_cogs);
+  const expenses = Number(expenseRows[0].total_expenses);
+  const spoilageKilos = Number(spoilageRows[0].total_spoilage_kilos);
+  const spoilageLoss = Number(spoilageRows[0].total_spoilage_loss);
+
+  const netProfit = profitService.computePrutasanNetProfit({
+    sales,
+    costOfGoodsSold,
+    expenses,
+    spoilageLoss,
+  });
+
+  return {
+    month,
+    sales,
+    costOfGoodsSold,
+    expenses,
+    stockMovements,
+    spoilage: {
+      total_kilos: spoilageKilos,
+      total_loss: spoilageLoss,
+    },
+    netProfit,
+  };
+};

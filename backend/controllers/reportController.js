@@ -35,3 +35,15 @@ exports.getPrutasanSummaryReport = async (req, res) => {
     res.status(500).json({ message: 'Failed to retrieve Prutasan summary.', error: error.message });
   }
 };
+
+// 2.9 Prutasan Monthly Report
+exports.getPrutasanMonthlyReport = async (req, res) => {
+  const { month } = req.query;
+
+  try {
+    const report = await reportService.getPrutasanMonthlyReport(month);
+    res.status(200).json(report);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to prepare Prutasan monthly report.', error: error.message });
+  }
+};
