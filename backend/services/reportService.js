@@ -1,8 +1,47 @@
 const db = require('../config/db');
 const profitService = require('./profitService');
 
+// ==========================================
+// 1.8 GULAYAN SALES AND EXPENSE SUMMARIES
+// ==========================================
+exports.getGulayanSalesAndExpenseSummary = async (month) => {
+  const [salesSummary] = await db.query(
+    `SELECT 
+       DATE_FORMAT(sale_date, '%Y-%m') AS month,
+       COALESCE(SUM(kilos), 0) AS total_kilos_sold,
+       COALESCE(SUM(total_amount), 0) AS total_sales
+     FROM gulayan_sales
+     WHERE department = 'Gulayan' AND DATE_FORMAT(sale_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  const [expenseByCategory] = await db.query(
+    `SELECT 
+       category,
+       COALESCE(SUM(amount), 0) AS category_total
+     FROM expenses
+     WHERE department = 'Gulayan' AND DATE_FORMAT(expense_date, '%Y-%m') = ?
+     GROUP BY category`,
+    [month]
+  );
+
+  const totalExpenses = expenseByCategory.reduce(
+    (sum, row) => sum + Number(row.category_total),
+    0
+  );
+
+  return {
+    month,
+    salesSummary: salesSummary[0],
+    expenseByCategory,
+    totalExpenses,
+  };
+};
+
+// ==========================================
+// 1.9 GULAYAN MONTHLY REPORT
+// ==========================================
 exports.getGulayanMonthlyReport = async (month) => {
-  // month format: 'YYYY-MM'
   const [salesRows] = await db.query(
     `SELECT 
        COALESCE(SUM(total_amount), 0) AS total_sales,
@@ -62,5 +101,42 @@ exports.getGulayanMonthlyReport = async (month) => {
       total_loss: spoilageLoss,
     },
     netProfit,
+  };
+};
+
+// ==========================================
+// 2.8 PRUTASAN SALES AND EXPENSE SUMMARIES
+// ==========================================
+exports.getPrutasanSalesAndExpenseSummary = async (month) => {
+  const [salesSummary] = await db.query(
+    `SELECT 
+       DATE_FORMAT(sale_date, '%Y-%m') AS month,
+       COALESCE(SUM(kilos), 0) AS total_kilos_sold,
+       COALESCE(SUM(total_amount), 0) AS total_sales
+     FROM prutasan_sales
+     WHERE department = 'Prutasan' AND DATE_FORMAT(sale_date, '%Y-%m') = ?`,
+    [month]
+  );
+
+  const [expenseByCategory] = await db.query(
+    `SELECT 
+       category,
+       COALESCE(SUM(amount), 0) AS category_total
+     FROM expenses
+     WHERE department = 'Prutasan' AND DATE_FORMAT(expense_date, '%Y-%m') = ?
+     GROUP BY category`,
+    [month]
+  );
+
+  const totalExpenses = expenseByCategory.reduce(
+    (sum, row) => sum + Number(row.category_total),
+    0
+  );
+
+  return {
+    month,
+    salesSummary: salesSummary[0],
+    expenseByCategory,
+    totalExpenses,
   };
 };

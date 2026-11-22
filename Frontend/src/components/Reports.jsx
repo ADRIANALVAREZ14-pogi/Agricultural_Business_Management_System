@@ -2,21 +2,32 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
 const Reports = () => {
+  const [department, setDepartment] = useState('Gulayan');
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [summary, setSummary] = useState(null);
-  const [monthlyReport, setMonthlyReport] = useState(null);
+
+  // Gulayan state (1.8 & 1.9)
+  const [gulayanSummary, setGulayanSummary] = useState(null);
+  const [gulayanMonthlyReport, setGulayanMonthlyReport] = useState(null);
+
+  // Prutasan state (2.8)
+  const [prutasanSummary, setPrutasanSummary] = useState(null);
 
   useEffect(() => {
-    const loadGulayanReports = async () => {
-      const [summaryRes, monthlyRes] = await Promise.all([
-        api.get(/reports/gulayan-summary?month=${month}),
-        api.get(/reports/gulayan-monthly?month=${month}),
-      ]);
-      setSummary(summaryRes.data);
-      setMonthlyReport(monthlyRes.data);
+    const loadReports = async () => {
+      if (department === 'Gulayan') {
+        const [summaryRes, monthlyRes] = await Promise.all([
+          api.get(`/reports/gulayan-summary?month=${month}`),
+          api.get(`/reports/gulayan-monthly?month=${month}`),
+        ]);
+        setGulayanSummary(summaryRes.data);
+        setGulayanMonthlyReport(monthlyRes.data);
+      } else if (department === 'Prutasan') {
+        const summaryRes = await api.get(`/reports/prutasan-summary?month=${month}`);
+        setPrutasanSummary(summaryRes.data);
+      }
     };
-    loadGulayanReports();
-  }, [month]);
+    loadReports();
+  }, [department, month]);
 
   // Shared print and export (PDF & Excel) engine (4.5)
   const handlePrint = () => {
@@ -24,39 +35,47 @@ const Reports = () => {
   };
 
   const handleExportPDF = async () => {
-    const res = await api.post(
-      '/reports/export/pdf',
-      { reportType: 'gulayan', month, summary, monthlyReport },
-      { responseType: 'blob' }
-    );
+    const payload =
+      department === 'Gulayan'
+        ? { reportType: 'gulayan', month, summary: gulayanSummary, monthlyReport: gulayanMonthlyReport }
+        : { reportType: 'prutasan', month, summary: prutasanSummary };
+
+    const res = await api.post('/reports/export/pdf', payload, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', Gulayan_Report_${month}.pdf);
+    link.setAttribute('download', `${department}_Report_${month}.pdf`);
     document.body.appendChild(link);
     link.click();
   };
 
   const handleExportExcel = async () => {
-    const res = await api.post(
-      '/reports/export/excel',
-      { reportType: 'gulayan', month, summary, monthlyReport },
-      { responseType: 'blob' }
-    );
+    const payload =
+      department === 'Gulayan'
+        ? { reportType: 'gulayan', month, summary: gulayanSummary, monthlyReport: gulayanMonthlyReport }
+        : { reportType: 'prutasan', month, summary: prutasanSummary };
+
+    const res = await api.post('/reports/export/excel', payload, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', Gulayan_Report_${month}.xlsx);
+    link.setAttribute('download', `${department}_Report_${month}.xlsx`);
     document.body.appendChild(link);
     link.click();
   };
 
   return (
     <div>
-      <h2>Gulayan Reports</h2>
+      <h2>Department Reports</h2>
 
       <div>
-        <label>Select Month: </label>
+        <label>Select Department: </label>
+        <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+          <option value="Gulayan">Gulayan</option>
+          <option value="Prutasan">Prutasan</option>
+        </select>
+
+        <label style={{ marginLeft: '12px' }}>Select Month: </label>
         <input
           type="month"
           value={month}
@@ -64,16 +83,18 @@ const Reports = () => {
         />
       </div>
 
-      <div>
+      <div style={{ marginTop: '10px' }}>
         <button type="button" onClick={handlePrint}>Print</button>
         <button type="button" onClick={handleExportPDF}>Export PDF</button>
         <button type="button" onClick={handleExportExcel}>Export Excel</button>
       </div>
 
-      {/* 1.8 Sales and Expense Summaries */}
-      {summary && (
+      {/* ========================================== */}
+      {/* GULAYAN REPORTS (1.8 & 1.9)                */}
+      {/* ========================================== */}
+      {department === 'Gulayan' && gulayanSummary && (
         <div>
-          <h3>Gulayan Sales and Expense Summary ({summary.month})</h3>
+          <h3>Gulayan Sales and Expense Summary ({gulayanSummary.month})</h3>
           <table>
             <thead>
               <tr>
@@ -83,8 +104,8 @@ const Reports = () => {
             </thead>
             <tbody>
               <tr>
-                <td>{summary.salesSummary?.total_kilos_sold} kg</td>
-                <td>{summary.salesSummary?.total_sales}</td>
+                <td>{gulayanSummary.salesSummary?.total_kilos_sold} kg</td>
+                <td>{gulayanSummary.salesSummary?.total_sales}</td>
               </tr>
             </tbody>
           </table>
@@ -97,7 +118,7 @@ const Reports = () => {
               </tr>
             </thead>
             <tbody>
-              {summary.expenseByCategory.map((item, idx) => (
+              {gulayanSummary.expenseByCategory.map((item, idx) => (
                 <tr key={idx}>
                   <td>{item.category}</td>
                   <td>{item.category_total}</td>
@@ -105,43 +126,42 @@ const Reports = () => {
               ))}
               <tr>
                 <td><strong>Total Expenses</strong></td>
-                <td><strong>{summary.totalExpenses}</strong></td>
+                <td><strong>{gulayanSummary.totalExpenses}</strong></td>
               </tr>
             </tbody>
           </table>
         </div>
       )}
 
-      {/* 1.9 Gulayan Monthly Report */}
-      {monthlyReport && (
+      {department === 'Gulayan' && gulayanMonthlyReport && (
         <div>
-          <h3>Gulayan Monthly Report ({monthlyReport.month})</h3>
+          <h3>Gulayan Monthly Report ({gulayanMonthlyReport.month})</h3>
           <table>
             <tbody>
               <tr>
                 <td>Sales</td>
-                <td>{monthlyReport.sales}</td>
+                <td>{gulayanMonthlyReport.sales}</td>
               </tr>
               <tr>
                 <td>Cost of Goods Sold</td>
-                <td>{monthlyReport.costOfGoodsSold}</td>
+                <td>{gulayanMonthlyReport.costOfGoodsSold}</td>
               </tr>
               <tr>
                 <td>Expenses</td>
-                <td>{monthlyReport.expenses}</td>
+                <td>{gulayanMonthlyReport.expenses}</td>
               </tr>
               <tr>
-                <td>Spoilage Loss ({monthlyReport.spoilage.total_kilos} kg)</td>
-                <td>{monthlyReport.spoilage.total_loss}</td>
+                <td>Spoilage Loss ({gulayanMonthlyReport.spoilage.total_kilos} kg)</td>
+                <td>{gulayanMonthlyReport.spoilage.total_loss}</td>
               </tr>
               <tr>
                 <td><strong>Net Profit</strong></td>
-                <td><strong>{monthlyReport.netProfit}</strong></td>
+                <td><strong>{gulayanMonthlyReport.netProfit}</strong></td>
               </tr>
             </tbody>
           </table>
 
-          <h4>Stock Movement ({monthlyReport.month})</h4>
+          <h4>Stock Movement ({gulayanMonthlyReport.month})</h4>
           <table>
             <thead>
               <tr>
@@ -153,7 +173,7 @@ const Reports = () => {
               </tr>
             </thead>
             <tbody>
-              {monthlyReport.stockMovements.map((m, idx) => (
+              {gulayanMonthlyReport.stockMovements.map((m, idx) => (
                 <tr key={idx}>
                   <td>{m.movement_date}</td>
                   <td>{m.item_name}</td>
@@ -162,6 +182,50 @@ const Reports = () => {
                   <td>{m.spoilage_loss}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ========================================== */}
+      {/* PRUTASAN REPORTS (2.8)                     */}
+      {/* ========================================== */}
+      {department === 'Prutasan' && prutasanSummary && (
+        <div>
+          <h3>Prutasan Sales and Expense Summary ({prutasanSummary.month})</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Total Kilos Sold</th>
+                <th>Total Sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{prutasanSummary.salesSummary?.total_kilos_sold} kg</td>
+                <td>{prutasanSummary.salesSummary?.total_sales}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Expense Category</th>
+                <th>Total Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {prutasanSummary.expenseByCategory.map((item, idx) => (
+                <tr key={idx}>
+                  <td>{item.category}</td>
+                  <td>{item.category_total}</td>
+                </tr>
+              ))}
+              <tr>
+                <td><strong>Total Expenses</strong></td>
+                <td><strong>{prutasanSummary.totalExpenses}</strong></td>
+              </tr>
             </tbody>
           </table>
         </div>
