@@ -143,3 +143,33 @@ exports.getDailyMovementsAndClosing = async (req, res) => {
 
   res.status(200).json({ movements, closing });
 };
+
+// ==========================================
+// 1.5 LOW-STOCK AND SPOILAGE INDICATORS
+// ==========================================
+exports.getGulayanIndicators = async (req, res) => {
+  try {
+    const [items] = await db.query(
+      `SELECT 
+         i.id,
+         i.item_name,
+         i.kilos,
+         i.purchase_cost_per_kilo,
+         i.low_stock_threshold,
+         (i.kilos <= i.low_stock_threshold) AS is_low_stock,
+         EXISTS(
+           SELECT 1 
+           FROM gulayan_stock_movements m 
+           WHERE m.department = 'Gulayan' 
+             AND m.item_name = i.item_name 
+             AND m.movement_type = 'OUT_SPOILAGE'
+         ) AS has_spoilage
+       FROM inventory i
+       WHERE i.department = 'Gulayan'`
+    );
+
+    res.status(200).json(items);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve Gulayan indicators.', error: error.message });
+  }
+};

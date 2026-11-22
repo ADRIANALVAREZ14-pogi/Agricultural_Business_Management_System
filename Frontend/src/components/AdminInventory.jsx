@@ -9,7 +9,7 @@ const AdminInventory = () => {
   const [purchaseCostPerKilo, setPurchaseCostPerKilo] = useState('');
 
   const loadGulayanStock = async () => {
-    const res = await api.get('/inventory/Gulayan');
+    const res = await api.get('/gulayan/indicators');
     setItems(res.data);
   };
 
@@ -87,6 +87,7 @@ const AdminInventory = () => {
             <th>Vegetable</th>
             <th>Kilos</th>
             <th>Purchase Cost per Kilo</th>
+            <th>Indicators</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -96,6 +97,11 @@ const AdminInventory = () => {
               <td>{item.item_name}</td>
               <td>{item.kilos} kg</td>
               <td>{item.purchase_cost_per_kilo}</td>
+              <td>
+                {Boolean(item.is_low_stock) && <span>[Low Stock] </span>}
+                {Boolean(item.has_spoilage) && <span>[Spoilage Recorded]</span>}
+                {!item.is_low_stock && !item.has_spoilage && <span>Normal</span>}
+              </td>
               <td>
                 <button type="button" onClick={() => handleEdit(item)}>Edit</button>
                 <button type="button" onClick={() => handleDelete(item.id)}>Delete</button>
