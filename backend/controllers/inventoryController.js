@@ -1,6 +1,8 @@
 const db = require('../config/db');
 
-// Shared data structure & functions followed by Prutasan (per-kilo inventory)
+// ==========================================
+// 1.3 GULAYAN INVENTORY MANAGEMENT
+// ==========================================
 exports.addStock = async (req, res) => {
   if (req.user.role !== 'Admin') {
     return res.status(403).json({ message: 'Admin only.' });
@@ -58,4 +60,86 @@ exports.deleteStock = async (req, res) => {
   await db.query(DELETE FROM inventory WHERE id = ?, [id]);
 
   res.status(200).json({ message: 'Deleted.' });
+};
+
+// ==========================================
+// 1.4 STOCK MOVEMENT AND END-OF-DAY CLOSING
+// ==========================================
+exports.recordStockMovement = async (req, res) => {
+  const { item_name, movement_type, kilos, movement_date, cost_per_kilo } = req.body;
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const spoilageLoss = movement_type === 'OUT_SPOILAGE' ? Number(kilos) * Number(cost_per_kilo || 0) : 0;
+
+    await connection.query(
+      `INSERT INTO gulayan_stock_movements (department, item_name, movement_type, kilos, spoilage_loss, movement_date)
+       VALUES ('Gulayan', ?, ?, ?, ?, ?)`,
+      [item_name, movement_type, kilos, spoilageLoss, movement_date]
+    );
+
+    if (movement_type === 'IN') {
+      await connection.query(
+        UPDATE inventory SET kilos = kilos + ? WHERE department = 'Gulayan' AND item_name = ?,
+        [kilos, item_name]
+      );
+    } else if (movement_type === 'OUT_SALE' || movement_type === 'OUT_SPOILAGE') {
+      await connection.query(
+        UPDATE inventory SET kilos = kilos - ? WHERE department = 'Gulayan' AND item_name = ?,
+        [kilos, item_name]
+      );
+    }
+
+    await connection.commit();
+    res.status(201).json({ message: 'Gulayan stock movement recorded.' });
+  } catch (error) {
+    await connection.rollback();
+    res.status(500).json({ message: 'Error recording stock movement.', error: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
+exports.computeDailyClosing = async (req, res) => {
+  const { date } = req.body;
+
+  try {
+    const [items] = await db.query(
+      SELECT item_name, kilos AS closing_kilos FROM inventory WHERE department = 'Gulayan'
+    );
+
+    for (const item of items) {
+      await db.query(
+        `INSERT INTO gulayan_daily_closing (department, item_name, closing_kilos, closing_date)
+         VALUES ('Gulayan', ?, ?, ?)`,
+        [item.item_name, item.closing_kilos, date]
+      );
+    }
+
+    res.status(200).json({ message: 'Daily closing computed.', items });
+  } catch (error) {
+    res.status(500).json({ message: 'Error computing daily closing.', error: error.message });
+  }
+};
+
+exports.getDailyMovementsAndClosing = async (req, res) => {
+  const { date } = req.query;
+
+  const [movements] = await db.query(
+    `SELECT id, item_name, movement_type, kilos, spoilage_loss, movement_date
+     FROM gulayan_stock_movements
+     WHERE department = 'Gulayan' AND DATE(movement_date) = ?`,
+    [date]
+  );
+
+  const [closing] = await db.query(
+    `SELECT item_name, closing_kilos, closing_date
+     FROM gulayan_daily_closing
+     WHERE department = 'Gulayan' AND DATE(closing_date) = ?`,
+    [date]
+  );
+
+  res.status(200).json({ movements, closing });
 };
