@@ -190,7 +190,6 @@ exports.getGulayanIndicators = async (req, res) => {
 exports.recordPrutasanStockMovement = async (req, res) => {
   const { item_name, movement_type, kilos, movement_date, reason } = req.body;
 
-  // Admin-only check for spoilage entry
   if (movement_type === 'OUT_SPOILAGE' && req.user?.role !== 'Admin') {
     return res.status(403).json({ message: 'Admin only for spoilage entry.' });
   }
@@ -199,7 +198,6 @@ exports.recordPrutasanStockMovement = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // Get purchase_cost_per_kilo from Prutasan inventory to record spoilage as a loss
     const [invRows] = await connection.query(
       `SELECT purchase_cost_per_kilo FROM inventory WHERE department = 'Prutasan' AND item_name = ?`,
       [item_name]
@@ -284,5 +282,35 @@ exports.getPrutasanDailyMovementsAndClosing = async (req, res) => {
     res.status(200).json({ currentStock, movements, closing });
   } catch (error) {
     res.status(500).json({ message: 'Error retrieving Prutasan movements and closing.', error: error.message });
+  }
+};
+
+// ==========================================
+// 2.5 PRUTASAN LOW-STOCK AND SPOILAGE INDICATORS
+// ==========================================
+exports.getPrutasanIndicators = async (req, res) => {
+  try {
+    const [items] = await db.query(
+      `SELECT 
+         i.id,
+         i.item_name,
+         i.kilos,
+         i.purchase_cost_per_kilo,
+         i.low_stock_threshold,
+         (i.kilos <= i.low_stock_threshold) AS is_low_stock,
+         EXISTS(
+           SELECT 1 
+           FROM prutasan_stock_movements m 
+           WHERE m.department = 'Prutasan' 
+             AND m.item_name = i.item_name 
+             AND m.movement_type = 'OUT_SPOILAGE'
+         ) AS has_spoilage
+       FROM inventory i
+       WHERE i.department = 'Prutasan'`
+    );
+
+    res.status(200).json(items);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve Prutasan indicators.', error: error.message });
   }
 };
