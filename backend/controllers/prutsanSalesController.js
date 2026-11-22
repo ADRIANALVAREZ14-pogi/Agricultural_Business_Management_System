@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 // ==========================================
-// 2.1 PRUTASAN SALES RECORDING (with 2.2 COGS & Total Calculation)
+// 2.1 PRUTASAN SALES RECORDING (with 2.2 COGS & 2.4 Stock Movement Deduction Log)
 // ==========================================
 exports.recordPrutasanSale = async (req, res) => {
   const { fruit, kilos, price_per_kilo, payment_method, sale_date } = req.body;
@@ -14,7 +14,6 @@ exports.recordPrutasanSale = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 2.2 Calculate transaction totals (kilos * price per kilo) and COGS using purchase cost per kilo
     const [invRows] = await connection.query(
       `SELECT purchase_cost_per_kilo FROM inventory WHERE department = 'Prutasan' AND item_name = ?`,
       [fruit]
@@ -23,7 +22,6 @@ exports.recordPrutasanSale = async (req, res) => {
     const totalAmount = Number(kilos) * Number(price_per_kilo);
     const costOfGoodsSold = Number(kilos) * purchaseCostPerKilo;
 
-    // Store record under Prutasan only
     const [result] = await connection.query(
       `INSERT INTO prutasan_sales 
        (department, fruit, kilos, price_per_kilo, purchase_cost_per_kilo, cost_of_goods_sold, payment_method, sale_date, total_amount)
@@ -37,6 +35,14 @@ exports.recordPrutasanSale = async (req, res) => {
        SET kilos = kilos - ? 
        WHERE department = 'Prutasan' AND item_name = ?`,
       [kilos, fruit]
+    );
+
+    // 2.4 Automatic deduction log in Prutasan stock movements
+    await connection.query(
+      `INSERT INTO prutasan_stock_movements 
+       (department, item_name, movement_type, kilos, spoilage_loss, movement_date)
+       VALUES ('Prutasan', ?, 'OUT_SALE', ?, 0, ?)`,
+      [fruit, kilos, sale_date]
     );
 
     await connection.commit();
@@ -63,7 +69,6 @@ exports.recordPrutasanSale = async (req, res) => {
 // 2.2 SALES CALCULATION AND RECORDS
 // ==========================================
 exports.getPrutasanSalesRecords = async (req, res) => {
-  // Admin views Prutasan sales separately; Prutasan staff see their own department only
   if (req.user?.role !== 'Admin' && req.user?.role !== 'Prutasan Staff') {
     return res.status(403).json({ message: 'Access restricted to Admin and Prutasan Staff only.' });
   }

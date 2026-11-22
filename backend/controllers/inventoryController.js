@@ -183,3 +183,106 @@ exports.getGulayanIndicators = async (req, res) => {
     res.status(500).json({ message: 'Failed to retrieve Gulayan indicators.', error: error.message });
   }
 };
+
+// ==========================================
+// 2.4 PRUTASAN STOCK MOVEMENT AND END-OF-DAY CLOSING
+// ==========================================
+exports.recordPrutasanStockMovement = async (req, res) => {
+  const { item_name, movement_type, kilos, movement_date, reason } = req.body;
+
+  // Admin-only check for spoilage entry
+  if (movement_type === 'OUT_SPOILAGE' && req.user?.role !== 'Admin') {
+    return res.status(403).json({ message: 'Admin only for spoilage entry.' });
+  }
+
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Get purchase_cost_per_kilo from Prutasan inventory to record spoilage as a loss
+    const [invRows] = await connection.query(
+      `SELECT purchase_cost_per_kilo FROM inventory WHERE department = 'Prutasan' AND item_name = ?`,
+      [item_name]
+    );
+    const costPerKilo = invRows.length > 0 ? Number(invRows[0].purchase_cost_per_kilo) : 0;
+    const spoilageLoss = movement_type === 'OUT_SPOILAGE' ? Number(kilos) * costPerKilo : 0;
+
+    await connection.query(
+      `INSERT INTO prutasan_stock_movements 
+       (department, item_name, movement_type, kilos, spoilage_loss, reason, movement_date)
+       VALUES ('Prutasan', ?, ?, ?, ?, ?, ?)`,
+      [item_name, movement_type, kilos, spoilageLoss, reason || null, movement_date]
+    );
+
+    if (movement_type === 'IN') {
+      await connection.query(
+        `UPDATE inventory SET kilos = kilos + ? WHERE department = 'Prutasan' AND item_name = ?`,
+        [kilos, item_name]
+      );
+    } else if (movement_type === 'OUT_SALE' || movement_type === 'OUT_SPOILAGE') {
+      await connection.query(
+        `UPDATE inventory SET kilos = kilos - ? WHERE department = 'Prutasan' AND item_name = ?`,
+        [kilos, item_name]
+      );
+    }
+
+    await connection.commit();
+    res.status(201).json({ message: 'Prutasan stock movement recorded.', spoilageLoss });
+  } catch (error) {
+    await connection.rollback();
+    res.status(500).json({ message: 'Error recording Prutasan stock movement.', error: error.message });
+  } finally {
+    connection.release();
+  }
+};
+
+exports.computePrutasanDailyClosing = async (req, res) => {
+  const { date } = req.body;
+
+  try {
+    const [items] = await db.query(
+      `SELECT item_name, kilos AS closing_kilos FROM inventory WHERE department = 'Prutasan'`
+    );
+
+    for (const item of items) {
+      await db.query(
+        `INSERT INTO prutasan_daily_closing (department, item_name, closing_kilos, closing_date)
+         VALUES ('Prutasan', ?, ?, ?)`,
+        [item.item_name, item.closing_kilos, date]
+      );
+    }
+
+    res.status(200).json({ message: 'Prutasan daily closing computed.', items });
+  } catch (error) {
+    res.status(500).json({ message: 'Error computing Prutasan daily closing.', error: error.message });
+  }
+};
+
+exports.getPrutasanDailyMovementsAndClosing = async (req, res) => {
+  const { date } = req.query;
+
+  try {
+    const [currentStock] = await db.query(
+      `SELECT id, item_name, kilos FROM inventory WHERE department = 'Prutasan'`
+    );
+
+    const [movements] = await db.query(
+      `SELECT id, item_name, movement_type, kilos, spoilage_loss, reason, movement_date
+       FROM prutasan_stock_movements
+       WHERE department = 'Prutasan' AND DATE(movement_date) = ?
+       ORDER BY movement_date DESC`,
+      [date]
+    );
+
+    const [closing] = await db.query(
+      `SELECT item_name, closing_kilos, closing_date
+       FROM prutasan_daily_closing
+       WHERE department = 'Prutasan' AND DATE(closing_date) = ?`,
+      [date]
+    );
+
+    res.status(200).json({ currentStock, movements, closing });
+  } catch (error) {
+    res.status(500).json({ message: 'Error retrieving Prutasan movements and closing.', error: error.message });
+  }
+};
