@@ -18,4 +18,18 @@ const authorizePrutasanStaff = (req, res, next) => {
   next();
 };
 
-module.exports = { authorizeGulayanStaff, authorizePrutasanStaff };
+// ==========================================
+// 3.9 BABUYAN STAFF ROLE MIDDLEWARE
+// ==========================================
+const authorizeBabuyanStaff = (req, res, next) => {
+  if (req.user?.role !== 'Babuyan Staff') {
+    return res.status(403).json({ message: 'Access restricted to Babuyan Staff interface only.' });
+  }
+  next();
+};
+
+module.exports = {
+  authorizeGulayanStaff,
+  authorizePrutasanStaff,
+  authorizeBabuyanStaff,
+};
