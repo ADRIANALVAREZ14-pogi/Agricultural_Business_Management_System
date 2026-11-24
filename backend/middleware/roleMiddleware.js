@@ -2,6 +2,37 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
 // ==========================================
+// 4.2 ROLE-BASED ACCESS SUMMARY MATRIX
+// ==========================================
+const RBAC_PERMISSIONS = {
+  Admin: [
+    'manage_users',
+    'gulayan:full',
+    'prutasan:full',
+    'babuyan:full',
+    'expenses:manage',
+    'profit:view',
+    'reports:view',
+    'analytics:view',
+    'audit:view',
+  ],
+  'Gulayan Staff': [
+    'gulayan:view_inventory',
+    'gulayan:add_sales',
+  ],
+  'Prutasan Staff': [
+    'prutasan:view_inventory',
+    'prutasan:add_sales',
+  ],
+  'Babuyan Staff': [
+    'babuyan:view_inventory',
+    'babuyan:record_usage',
+    'babuyan:edit_usage',
+    'babuyan:growth_health',
+  ],
+};
+
+// ==========================================
 // 4.1 SESSION AUTHENTICATION & ADMIN GUARD
 // ==========================================
 const authenticateSession = async (req, res, next) => {
@@ -18,9 +49,8 @@ const authenticateSession = async (req, res, next) => {
       process.env.JWT_SECRET || 'farm_management_secret_key'
     );
 
-    // Ensure account has not been deactivated mid-session
     const [rows] = await db.query(
-      SELECT id, username, role, status FROM users WHERE id = ? LIMIT 1,
+      SELECT id, username, department, role, status FROM users WHERE id = ? LIMIT 1,
       [decoded.id]
     );
 
@@ -37,13 +67,52 @@ const authenticateSession = async (req, res, next) => {
 
 const authorizeAdmin = (req, res, next) => {
   if (req.user?.role !== 'Admin') {
-    return res.status(403).json({ message: 'Access restricted to Admin full menu only.' });
+    return res.status(403).json({ message: 'Access restricted to Administrator only.' });
   }
   next();
 };
 
 // ==========================================
-// 1.11 GULAYAN STAFF ROLE MIDDLEWARE
+// 4.2 MODULE ACCESS-CHECK FUNCTIONS (USED BY EVERY MODULE)
+// ==========================================
+const hasPermission = (role, requiredPermission) => {
+  if (role === 'Admin') return true;
+  const allowed = RBAC_PERMISSIONS[role] || [];
+  return allowed.includes(requiredPermission);
+};
+
+const checkModuleAccess = (requiredPermission, requiredDepartment = null) => {
+  return (req, res, next) => {
+    const user = req.user;
+    if (!user || user.status !== 'active') {
+      return res.status(403).json({ message: 'Inactive or unauthorized account.' });
+    }
+
+    // Administrator has full access across all departments and modules
+    if (user.role === 'Admin') {
+      return next();
+    }
+
+    // Enforce department isolation for staff roles
+    if (requiredDepartment && user.department !== requiredDepartment) {
+      return res.status(403).json({
+        message: Access denied. Restricted to ${requiredDepartment} department.,
+      });
+    }
+
+    // Enforce permission rule from Role-Based Access Summary
+    if (!hasPermission(user.role, requiredPermission)) {
+      return res.status(403).json({
+        message: Access denied. Role '${user.role}' lacks '${requiredPermission}' permission.,
+      });
+    }
+
+    next();
+  };
+};
+
+// ==========================================
+// 1.11, 2.11, 3.9 STAFF ROLE MIDDLEWARES
 // ==========================================
 const authorizeGulayanStaff = (req, res, next) => {
   if (req.user?.role !== 'Gulayan Staff') {
@@ -52,9 +121,6 @@ const authorizeGulayanStaff = (req, res, next) => {
   next();
 };
 
-// ==========================================
-// 2.11 PRUTASAN STAFF ROLE MIDDLEWARE
-// ==========================================
 const authorizePrutasanStaff = (req, res, next) => {
   if (req.user?.role !== 'Prutasan Staff') {
     return res.status(403).json({ message: 'Access restricted to Prutasan Staff interface only.' });
@@ -62,9 +128,6 @@ const authorizePrutasanStaff = (req, res, next) => {
   next();
 };
 
-// ==========================================
-// 3.9 BABUYAN STAFF ROLE MIDDLEWARE
-// ==========================================
 const authorizeBabuyanStaff = (req, res, next) => {
   if (req.user?.role !== 'Babuyan Staff') {
     return res.status(403).json({ message: 'Access restricted to Babuyan Staff interface only.' });
@@ -73,8 +136,11 @@ const authorizeBabuyanStaff = (req, res, next) => {
 };
 
 module.exports = {
+  RBAC_PERMISSIONS,
   authenticateSession,
   authorizeAdmin,
+  hasPermission,
+  checkModuleAccess,
   authorizeGulayanStaff,
   authorizePrutasanStaff,
   authorizeBabuyanStaff,
