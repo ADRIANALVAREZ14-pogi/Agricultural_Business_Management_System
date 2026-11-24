@@ -1,49 +1,54 @@
-const reportService = require('../services/reportService');
+const exportEngineService = require('../services/exportEngineService');
 
-// 1.8 Gulayan Sales and Expense Summaries
-exports.getGulayanSummaryReport = async (req, res) => {
-  const { month } = req.query;
+// ==========================================
+// 4.5 SHARED REPORTING ENGINE ENDPOINTS
+// ==========================================
+
+// Retrieve report data for Gulayan monthly, Prutasan monthly, Babuyan per-batch, or Sales/Expense summaries
+exports.getDepartmentReport = async (req, res) => {
+  const { department, month } = req.query;
 
   try {
-    const summary = await reportService.getGulayanSalesAndExpenseSummary(month);
-    res.status(200).json(summary);
+    const reportData = await exportEngineService.getDepartmentMonthlyAndSummaries({
+      department: department || 'Gulayan',
+      month: month || null,
+    });
+    res.status(200).json(reportData);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to retrieve Gulayan summary.', error: error.message });
+    res.status(500).json({ message: 'Failed to generate department report.', error: error.message });
   }
 };
 
-// 1.9 Gulayan Monthly Report
-exports.getGulayanMonthlyReport = async (req, res) => {
-  const { month } = req.query;
-
+// Shared PDF export endpoint used by all report views
+exports.exportReportPDF = async (req, res) => {
   try {
-    const report = await reportService.getGulayanMonthlyReport(month);
-    res.status(200).json(report);
+    const { department, month, customPayload } = req.body;
+    const payload =
+      customPayload ||
+      (await exportEngineService.getDepartmentMonthlyAndSummaries({
+        department: department || 'Gulayan',
+        month: month || null,
+      }));
+
+    exportEngineService.generateSharedPDF(res, payload);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to prepare Gulayan monthly report.', error: error.message });
+    res.status(500).json({ message: 'Failed to export PDF report.', error: error.message });
   }
 };
 
-// 2.8 Prutasan Sales and Expense Summaries
-exports.getPrutasanSummaryReport = async (req, res) => {
-  const { month } = req.query;
-
+// Shared Excel export endpoint used by all report views
+exports.exportReportExcel = async (req, res) => {
   try {
-    const summary = await reportService.getPrutasanSalesAndExpenseSummary(month);
-    res.status(200).json(summary);
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to retrieve Prutasan summary.', error: error.message });
-  }
-};
+    const { department, month, customPayload } = req.body;
+    const payload =
+      customPayload ||
+      (await exportEngineService.getDepartmentMonthlyAndSummaries({
+        department: department || 'Gulayan',
+        month: month || null,
+      }));
 
-// 2.9 Prutasan Monthly Report
-exports.getPrutasanMonthlyReport = async (req, res) => {
-  const { month } = req.query;
-
-  try {
-    const report = await reportService.getPrutasanMonthlyReport(month);
-    res.status(200).json(report);
+    await exportEngineService.generateSharedExcel(res, payload);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to prepare Prutasan monthly report.', error: error.message });
+    res.status(500).json({ message: 'Failed to export Excel report.', error: error.message });
   }
 };
