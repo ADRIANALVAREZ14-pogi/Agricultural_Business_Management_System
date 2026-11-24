@@ -16,9 +16,10 @@ import AdminExpenses from './AdminExpenses';
 import BabuyanBatchReports from './BabuyanBatchReports';
 import BabuyanAnalytics from './BabuyanAnalytics';
 import AdminUserManagement from './AdminUserManagement';
+import AdminAuditLogs from './AdminAuditLogs';
 
 const AdminInterface = ({ user, onLogout }) => {
-  const [activeModal, setActiveModal] = useState(null); // 'stock' | 'expense' | 'livestock' | null
+  const [activeModal, setActiveModal] = useState(null);
 
   // Quick Action 1: Add Stock State
   const [stockDept, setStockDept] = useState('Gulayan');
@@ -156,6 +157,7 @@ const AdminInterface = ({ user, onLogout }) => {
             <li><Link to="/admin/reports" style={{ color: '#cbd5e1' }}>Reports</Link></li>
             <li><Link to="/admin/analytics" style={{ color: '#cbd5e1' }}>Analytics</Link></li>
             <li><Link to="/admin/users" style={{ color: '#cbd5e1' }}>User Access Management</Link></li>
+            <li><Link to="/admin/audit-logs" style={{ color: '#cbd5e1' }}>Activity &amp; Audit Logs</Link></li>
           </ul>
         </div>
 
@@ -166,7 +168,6 @@ const AdminInterface = ({ user, onLogout }) => {
 
       {/* MAIN CONTENT AREA */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* TOP ACTION BAR: Add Stock, Add Expense, and Add Livestock (with purchase date) buttons */}
         <header style={{ backgroundColor: '#f1f5f9', padding: '12px 20px', borderBottom: '1px solid #cbd5e1', display: 'flex', gap: '10px' }}>
           <button type="button" onClick={() => setActiveModal('stock')}>
             + Add Stock
@@ -179,7 +180,6 @@ const AdminInterface = ({ user, onLogout }) => {
           </button>
         </header>
 
-        {/* QUICK ACTION FORMS (MODAL / INLINE PANEL) */}
         {activeModal === 'stock' && (
           <div style={{ backgroundColor: '#fff', border: '1px solid #94a3b8', padding: '16px', margin: '16px 20px 0' }}>
             <h3>Quick Action: Add Stock</h3>
@@ -321,10 +321,9 @@ const AdminInterface = ({ user, onLogout }) => {
           </div>
         )}
 
-        {/* DIRECT MODULE ROUTES (NO DASHBOARD VIEW) */}
+        {/* DIRECT MODULE ROUTES */}
         <main style={{ padding: '20px', flex: 1 }}>
           <Routes>
-            {/* Default Admin entry points directly to Gulayan Inventory (No Dashboard) */}
             <Route index element={<Navigate to="/admin/gulayan/inventory" replace />} />
 
             {/* Gulayan */}
@@ -345,10 +344,11 @@ const AdminInterface = ({ user, onLogout }) => {
             <Route path="babuyan/growth-health" element={<BabuyanGrowthHealth />} />
             <Route path="babuyan/profitability" element={<AdminBabuyanProfitability />} />
 
-            {/* Reports, Analytics, User Access Management */}
+            {/* Reports, Analytics, User Access Management, Activity & Audit Logs */}
             <Route path="reports" element={<BabuyanBatchReports />} />
             <Route path="analytics" element={<BabuyanAnalytics />} />
             <Route path="users" element={<AdminUserManagement />} />
+            <Route path="audit-logs" element={<AdminAuditLogs />} />
           </Routes>
         </main>
       </div>
