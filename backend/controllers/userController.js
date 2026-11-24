@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const db = require('../config/db');
+const { logActivity, getAuditLogs } = require('../services/auditLogger');
 
 const VALID_ROLES = ['Admin', 'Gulayan Staff', 'Prutasan Staff', 'Babuyan Staff'];
 const VALID_DEPARTMENTS = ['All', 'Gulayan', 'Prutasan', 'Babuyan'];
@@ -48,6 +49,16 @@ exports.createUser = async (req, res) => {
       [username, passwordHash, full_name, department, role]
     );
 
+    // 4.4 Audit Log: Account Creation
+    await logActivity({
+      user: req.user,
+      department: 'All',
+      module_name: 'User Account Management',
+      action_type: 'ACCOUNT_CREATED',
+      record_id: result.insertId,
+      details: Created user '${username}' (${role} - ${department}),
+    });
+
     res.status(201).json({
       id: result.insertId,
       username,
@@ -88,6 +99,16 @@ exports.updateUser = async (req, res) => {
       );
     }
 
+    // 4.4 Audit Log: Account Edit
+    await logActivity({
+      user: req.user,
+      department: 'All',
+      module_name: 'User Account Management',
+      action_type: 'ACCOUNT_UPDATED',
+      record_id: id,
+      details: Updated user '${username}' (${role} - ${department}),
+    });
+
     res.status(200).json({ message: 'User account updated successfully.' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to update user account.', error: error.message });
@@ -97,21 +118,49 @@ exports.updateUser = async (req, res) => {
 // Admin deactivates or reactivates a user account
 exports.toggleUserStatus = async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body; // 'active' or 'deactivated'
+  const { status } = req.body;
 
   if (!['active', 'deactivated'].includes(status)) {
     return res.status(400).json({ message: 'Invalid account status.' });
   }
 
-  // Prevent Admin from deactivating their own currently logged-in account
   if (Number(id) === Number(req.user.id) && status === 'deactivated') {
     return res.status(400).json({ message: 'You cannot deactivate your own active Admin account.' });
   }
 
   try {
     await db.query(UPDATE users SET status = ? WHERE id = ?, [status, id]);
+
+    // 4.4 Audit Log: Account Status Change
+    await logActivity({
+      user: req.user,
+      department: 'All',
+      module_name: 'User Account Management',
+      action_type: status === 'deactivated' ? 'ACCOUNT_DEACTIVATED' : 'ACCOUNT_ACTIVATED',
+      record_id: id,
+      details: Changed user ID #${id} status to '${status}',
+    });
+
     res.status(200).json({ message: User account ${status}. });
   } catch (error) {
     res.status(500).json({ message: 'Failed to update user status.', error: error.message });
+  }
+};
+
+// ==========================================
+// 4.4 ADMIN-ONLY SYSTEM ACTIVITY & AUDIT LOGS
+// ==========================================
+exports.getSystemAuditLogs = async (req, res) => {
+  if (req.user?.role !== 'Admin') {
+    return res.status(403).json({ message: 'Admin only.' });
+  }
+
+  const { user, department, date } = req.query;
+
+  try {
+    const logs = await getAuditLogs({ user, department, date });
+    res.status(200).json(logs);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to retrieve system audit logs.', error: error.message });
   }
 };
