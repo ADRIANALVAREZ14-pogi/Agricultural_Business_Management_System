@@ -2,11 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-// Helper: Determine target route per role
+// Helper: Determine target route per role (4.1 & 4.3)
 const getRedirectRouteByRole = (role) => {
   switch (role) {
     case 'Admin':
-      return '/admin';
+      return '/admin/gulayan/inventory'; // Route Admin directly to full menu (no dashboard)
     case 'Gulayan Staff':
       return '/gulayan-staff';
     case 'Prutasan Staff':
@@ -19,7 +19,7 @@ const getRedirectRouteByRole = (role) => {
 };
 
 // ==========================================
-// 4.1 LOGIN AND ROLE-BASED ROUTING
+// 4.1 & 4.3 LOGIN AND ROLE-BASED ROUTING
 // ==========================================
 exports.login = async (req, res) => {
   const { username, password } = req.body;
@@ -30,7 +30,7 @@ exports.login = async (req, res) => {
 
   try {
     const [users] = await db.query(
-      `SELECT id, username, password_hash, full_name, role, status
+      `SELECT id, username, password_hash, full_name, department, role, status
        FROM users
        WHERE username = ?
        LIMIT 1`,
@@ -43,7 +43,6 @@ exports.login = async (req, res) => {
 
     const user = users[0];
 
-    // Reject deactivated accounts
     if (user.status !== 'active') {
       return res.status(403).json({
         message: 'Your account has been deactivated. Please contact the Admin.',
@@ -75,6 +74,7 @@ exports.login = async (req, res) => {
         id: user.id,
         username: user.username,
         full_name: user.full_name,
+        department: user.department,
         role: user.role,
         status: user.status,
       },
@@ -85,11 +85,10 @@ exports.login = async (req, res) => {
   }
 };
 
-// Validate active session & current user role
 exports.getSession = async (req, res) => {
   try {
     const [users] = await db.query(
-      `SELECT id, username, full_name, role, status
+      `SELECT id, username, full_name, department, role, status
        FROM users
        WHERE id = ?
        LIMIT 1`,
