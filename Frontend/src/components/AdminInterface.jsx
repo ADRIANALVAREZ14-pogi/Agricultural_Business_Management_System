@@ -13,7 +13,7 @@ import AdminBabuyanBatches from './AdminBabuyanBatches';
 import AdminBabuyanProfitability from './AdminBabuyanProfitability';
 import BabuyanGrowthHealth from './BabuyanGrowthHealth';
 import AdminExpenses from './AdminExpenses';
-import BabuyanBatchReports from './BabuyanBatchReports';
+import AdminReportsScreen from './AdminReportsScreen';
 import BabuyanAnalytics from './BabuyanAnalytics';
 import AdminUserManagement from './AdminUserManagement';
 import AdminAuditLogs from './AdminAuditLogs';
@@ -344,8 +344,8 @@ const AdminInterface = ({ user, onLogout }) => {
             <Route path="babuyan/growth-health" element={<BabuyanGrowthHealth />} />
             <Route path="babuyan/profitability" element={<AdminBabuyanProfitability />} />
 
-            {/* Reports, Analytics, User Access Management, Activity & Audit Logs */}
-            <Route path="reports" element={<BabuyanBatchReports />} />
+            {/* Shared Reports & Export Center, Analytics, User Access Management, Activity & Audit Logs */}
+            <Route path="reports" element={<AdminReportsScreen />} />
             <Route path="analytics" element={<BabuyanAnalytics />} />
             <Route path="users" element={<AdminUserManagement />} />
             <Route path="audit-logs" element={<AdminAuditLogs />} />
